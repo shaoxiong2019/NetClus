@@ -4,38 +4,41 @@ import java.util.ArrayList;
 import java.util.Iterator;
 
 import com.litb.jama.Matrix;
+import com.litb.netclus.entity.SingleCluster;
+import com.litb.netclus.entity.Store;
+import com.litb.netclus.entity.Vertex;
 import com.litb.netclus.rankFunc.RankFunc;
 
-
+@SuppressWarnings("unused")
 public class Cluster {
 	private Store s=null;
 	private int clusterNum;
-	private ArrayList<SingleCluster> c=null;
+	public ArrayList<SingleCluster> c=null;
 	private int ITER=7;
+	
 	private double PRIOR_COEFFCIENTS=0.8;
 	private static double SMOOTHING_COEFFCIENTS=0.4;
 	
 	private double[][] pko=null;
-	
-	
-	public static void main(String[] args) {
-		Store s=new Store();
-		new Parser("data/data.xml", s);
-		s.build();
-		Cluster c=new Cluster(s, 3);
-		c.initCluster();
-		c.step1();
-		c.step2();
-	}
-	
+	private RankFunc rf=null;
+	private SingleCluster background=null;
+	private int iterationTimes=0;
+	private int times=0;
+
 	
 	public Cluster(Store s,int k){
 		this.s=s;
 		this.clusterNum=k;
 	}
 	
-	public void iterator() {
-		
+	
+	public void iteration(int t) {
+		iterationTimes=t;
+		for (int i = 0; i < t; i++) {
+			step1();
+			step2();
+			step3();
+		}
 	}
 	
 	
@@ -43,14 +46,6 @@ public class Cluster {
 	 * build ranking-based probability generative model for each net-cluster
 	 */
 	public void step1(){
-		RankFunc rf=new RankFunc(this.s);
-		
-		//get background rank  clusterNum
-		this.c.get(clusterNum).rc=rf.SimpleRank(this.s.woc, this.c.get(clusterNum).l);
-		this.c.get(clusterNum).ri=rf.SimpleRank(this.s.woi, this.c.get(clusterNum).l);
-		this.c.get(clusterNum).rm=rf.SimpleRank(this.s.wom, this.c.get(clusterNum).l);
-		
-		
 		for (int k = 0; k < clusterNum; k++) {
 			/*Map<String, Matrix> arl=rf.AuthorityRank(this.c.get(k).l,k);
 			this.c.get(k).ri=arl.get("item");
@@ -63,12 +58,20 @@ public class Cluster {
 	}
 	
 	
+	public void generateBackgroundModel() {
+		background.rc=rf.SimpleRank(this.s.woc, background.l);
+		background.ri=rf.SimpleRank(this.s.woi, background.l);
+		background.rm=rf.SimpleRank(this.s.wom, background.l);
+	}
+	
+	
 	/**
 	 * calculate the posterior probability of target objects
 	 */
 	public void step2(){
 		double[] pk=new double[clusterNum];
 		double[][] pok=new double[clusterNum][this.s.o];
+		pko=new double[this.s.o][clusterNum];
 		
 		for (int i = 0; i < pk.length; i++) {
 			pk[i]=1.0/(clusterNum+1);
@@ -113,35 +116,38 @@ public class Cluster {
 		while (it.hasNext()) {
 			String key =it.next();
 			Vertex val=this.s.v.get(key);
-			
-			double minDis=Double.MAX_VALUE;
-			
-			for (int k = 0; k < clusterNum; k++) {
-				double num=0.0,denp1=0.0,denp2=0.0;
+			if (val.type==Vertex.ORDER) {
+				double minDis=Double.MAX_VALUE;
 				
-				for (int i = 0; i < clusterNum; i++) {
-					num+=pko[val.id][i]*this.c.get(k).s[i];
-					denp1+=Math.pow(pko[val.id][i], 2.0);
-					denp2+=Math.pow(this.c.get(k).s[i], 2.0);
-				}
-				
-				double dis=1-(num/Math.pow(denp1*denp2,0.5));
-				
-				if(dis<=minDis){
-					minDis=dis;
-					o[val.id]=k;
-					val.cluster=k;
+				for (int k = 0; k < clusterNum; k++) {
+					double num=0.0,denp1=0.0,denp2=0.0;
+					
+					for (int i = 0; i < clusterNum; i++) {
+						num+=pko[val.id][i]*this.c.get(k).s[i];
+						denp1+=Math.pow(pko[val.id][i], 2.0);
+						denp2+=Math.pow(this.c.get(k).s[i], 2.0);
+					}
+					
+					double dis=1-(num/Math.pow(denp1*denp2,0.5));
+					
+					if(dis<=minDis){
+						minDis=dis;
+						o[val.id]=k;
+						val.cluster=k;
+					}
 				}
 			}
 		}
 		
 		pko=null;
 		clearClusterList();
+		
 		beginCluster();
 		
 		for (int i = 0; i < o.length; i++) {
 			this.c.get(o[i]).l.add(i);
 		}
+		
 		System.gc();
 	}
 	
@@ -160,17 +166,17 @@ public class Cluster {
 			pok[i]=1.0;
 			for (int c = 0; c < this.s.c; c++) {
 				double w=this.s.oc(i, c);
-				double r=this.c.get(clusterNum).rc.get(c, 0)*SMOOTHING_COEFFCIENTS+this.c.get(k).rc.get(c, 0)*SMOOTHING_COEFFCIENTS;
+				double r=background.rc.get(c, 0)*SMOOTHING_COEFFCIENTS+this.c.get(k).rc.get(c, 0)*SMOOTHING_COEFFCIENTS;
 				pok[i]*=Math.pow(r*rates[0], w);
 			}
 			for (int n = 0; n < this.s.i; n++) {
 				double w=this.s.oi(i,n);
-				double r=this.c.get(clusterNum).ri.get(n, 0)*SMOOTHING_COEFFCIENTS+this.c.get(k).ri.get(n, 0)*SMOOTHING_COEFFCIENTS;
+				double r=background.ri.get(n, 0)*SMOOTHING_COEFFCIENTS+this.c.get(k).ri.get(n, 0)*SMOOTHING_COEFFCIENTS;
 				pok[i]*=Math.pow(r*rates[1], w);
 			}
 			for (int m = 0; m < this.s.m; m++) {
 				double w=this.s.om(i,m);
-				double r=this.c.get(clusterNum).rm.get(m, 0)*SMOOTHING_COEFFCIENTS+this.c.get(k).rm.get(m, 0)*SMOOTHING_COEFFCIENTS;
+				double r=background.rm.get(m, 0)*SMOOTHING_COEFFCIENTS+this.c.get(k).rm.get(m, 0)*SMOOTHING_COEFFCIENTS;
 				pok[i]*=Math.pow(r*rates[2], w);
 			}
 			
@@ -205,13 +211,15 @@ public class Cluster {
 	
 	public void beginCluster(){
 		this.c=new ArrayList<SingleCluster>();
-		for (int i = 0; i < clusterNum+1; i++) {
+		for (int i = 0; i < clusterNum; i++) {
 			c.add(new SingleCluster(clusterNum));
 		}
 	}
 	
 	public void initCluster(){
 		beginCluster();
+		
+		background=new SingleCluster(clusterNum);
 		
 		Iterator<String> it=s.v.keySet().iterator();
 		
@@ -225,8 +233,11 @@ public class Cluster {
 				this.s.v.get(key).cluster=Num;
 				
 				this.c.get(Num).l.add(this.s.v.get(key).id);
-				this.c.get(clusterNum).l.add(this.s.v.get(key).id);
+				background.l.add(this.s.v.get(key).id);
 			}
 		}
+		
+		this.rf=new RankFunc(this.s);
+		generateBackgroundModel();
 	}
 }	

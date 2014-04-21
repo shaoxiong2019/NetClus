@@ -6,8 +6,8 @@ import java.util.Iterator;
 import java.util.Map;
 
 import com.litb.jama.Matrix;
-import com.litb.netclus.Store;
-import com.litb.netclus.Vertex;
+import com.litb.netclus.entity.Store;
+import com.litb.netclus.entity.Vertex;
 
 public class RankFunc {
 	public Store s=null;
