@@ -18,6 +18,7 @@ public class Vertex {
 	public static int ITEM=2;
 	public static int CUSTOMER=3;
 	public static int MERCHANT=4;
+	public static int CATEGORY=5;
 	
 	public Vertex(int id,int type,String name) {
 		this.id=id;

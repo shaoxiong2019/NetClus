@@ -9,35 +9,26 @@ import com.litb.netclus.Cluster;
 
 public class Rank {
 	public List RankList=null;
-	public Store s=null;
 	public Cluster c=null;
 	
-	public Rank(Store s,Cluster c){
-		this.s=s;
+	public Rank(Cluster c){
 		this.c=c;
 	}
 	
-	public ArrayList<RankedObject> rank(int k){
-		ArrayList<RankedObject> rol=new ArrayList<RankedObject>();
-		
-		for (int i = 0; i <s.c ; i++) {
-			rol.add(new RankedObject(c.c.get(k).rc.get(i, 0), i));
-		}
-		
+	public ArrayList<RankedObject> rank(ArrayList<RankedObject> l){
+		ArrayList<RankedObject> rol=l;
 		Collections.sort(rol,new RankComparetor());
-		
 		return rol;
 	}
-	
 	
 	class RankComparetor implements Comparator<RankedObject>{
 		@Override
 		public int compare(RankedObject o1, RankedObject o2) {
 			if (o1.r>o2.r){
-				return 1;
+				return -1;
 			}
 			if (o1.r<o2.r) {
-				return -1;
+				return 1;
 			}
 			return 0;
 		}

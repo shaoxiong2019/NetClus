@@ -13,23 +13,37 @@ public class Store {
 	
 	HashMap<String, String> ii=null;
 	
-	HashMap<String, Set<String>> oi=null;
-	HashMap<String, String> oc=null;
-	HashMap<String, String> om=null;
+	HashMap<String, Set<WeightObject>> oi=null;
+	HashMap<String, WeightObject> oc=null;
+	HashMap<String, WeightObject> om=null;
+	HashMap<String, Set<WeightObject>> og=null;
 	
-	public int o,c,i,m=0;
+	
+	public int o,c,i,m,g=0;
+	
+	public Map<String, double[][]> relations=null;
 	
 	public double[][] woi=null;
 	public double[][] woc=null;
 	public double[][] wom=null;
+	public double[][] wog=null;
+	public Map<String, double[][]> s=new HashMap<String, double[][]>();
+	
+	/*public static void main(String[] args) {
+		Store s=new Store();
+		Parser p=new Parser("data/input.xml", s);
+		s.build();
+	}*/
 	
 	public Store(){
 		e=new HashMap<String, Edge>();
 		v=new HashMap<String, Vertex>();
 		
-		oi=new HashMap<String, Set<String>>();
-		oc=new HashMap<String, String>();
-		om=new HashMap<String, String>();
+		oi=new HashMap<String, Set<WeightObject>>();
+		oc=new HashMap<String, WeightObject>();
+		om=new HashMap<String, WeightObject>();
+		og=new HashMap<String, Set<WeightObject>>();
+		relations=new HashMap<String, double[][]>();
 	}
 	
 	public void build(){
@@ -38,6 +52,11 @@ public class Store {
 		this.formwoi();
 		this.formwoc();
 		this.formwom();
+		this.formwog();
+		relations.put("order-item", woi);
+		relations.put("order-customer", woc);
+		relations.put("order-category", wog);
+		relations.put("order-merchant", wom);
 		clean();
 		System.gc();
 	}
@@ -45,16 +64,13 @@ public class Store {
 	
 	public void formwoi(){
 		woi=new double[this.o][this.i];
-		
 		Iterator<String> oit=oi.keySet().iterator();
-		
 		while (oit.hasNext()) {
 			String key = oit.next();
-			Set<String> items=oi.get(key);
-			Iterator<String> iit=items.iterator();
+			Iterator<WeightObject> iit=oi.get(key).iterator();
 			while (iit.hasNext()) {
-				String itemId = iit.next();
-				this.woi[v.get(key).id][v.get(itemId).id]++;
+				WeightObject obj = iit.next();
+				this.woi[v.get(key).id][v.get(obj.itemId).id]+=obj.weight;
 			}
 		}
 	}
@@ -66,8 +82,8 @@ public class Store {
 		
 		while (it.hasNext()) {
 			String key = it.next();
-			String val=oc.get(key);
-			this.woc[this.v.get(key).id][this.v.get(val).id]++;
+			WeightObject obj=oc.get(key);
+			this.woc[this.v.get(key).id][this.v.get(obj.itemId).id]+=obj.weight;
 		}
 	}
 	
@@ -78,8 +94,23 @@ public class Store {
 		
 		while (it.hasNext()) {
 			String key = it.next();
-			String val=om.get(key);
-			this.wom[this.v.get(key).id][this.v.get(val).id]++;
+			WeightObject obj=om.get(key);
+			this.wom[this.v.get(key).id][this.v.get(obj.itemId).id]+=obj.weight;
+		}
+	}
+	
+	public void formwog(){
+		this.wog=new double[this.o][this.g];
+		
+		Iterator<String> it=og.keySet().iterator();
+		
+		while (it.hasNext()) {
+			String key = it.next();
+			Iterator<WeightObject> iit=og.get(key).iterator();
+			while (iit.hasNext()) {
+				WeightObject obj = iit.next();
+				this.wog[this.v.get(key).id][this.v.get(obj.itemId).id]+=obj.weight;
+			}
 		}
 	}
 	
@@ -90,17 +121,22 @@ public class Store {
 			String key=it.next();
 			Edge val=this.e.get(key);
 			
-			if(val.des.startsWith("i")){
-				if(!oi.get(val.src).contains(val.des)){
-					oi.get(val.src).add(val.des);
+			WeightObject obj=new WeightObject(val.des, val.weight);
+			
+			if(val.des.startsWith("I")){
+				if(!oi.get(val.src).contains(obj)){
+					oi.get(val.src).add(obj);
 				}
-			}else if(val.des.startsWith("c")){
-				oc.put(val.src, val.des);
-			}else if(val.des.startsWith("m")){
-				om.put(val.src, val.des);
+			}else if(val.des.startsWith("C")){
+				oc.put(val.src, obj);
+			}else if(val.des.startsWith("M")){
+				om.put(val.src, obj);
+			}else if(val.des.startsWith("G")){
+				if(!og.get(val.src).contains(obj)){
+					og.get(val.src).add(obj);
+				}
 			}
 		}
-		
 		this.e=null;
 	}
 	
@@ -117,10 +153,15 @@ public class Store {
 		return woc[o][c];
 	}
 	
+	public double og(int o,int g){
+		return wog[o][g];
+	}
+	
 	public void clean(){
 		this.oi=null;
 		this.oc=null;
 		this.om=null;
+		this.og=null;
 	}
 	
 	public void order(String itemId){
@@ -128,7 +169,10 @@ public class Store {
 			v.put(itemId, new Vertex(o, Vertex.ORDER, ""));
 			o++;
 			if(!oi.containsKey(itemId)){
-				oi.put(itemId, new HashSet<String>());
+				oi.put(itemId, new HashSet<WeightObject>());
+			}
+			if(!og.containsKey(itemId)){
+				og.put(itemId,new HashSet<WeightObject>());
 			}
 		}
 	}
@@ -152,5 +196,36 @@ public class Store {
 			v.put(customerId, new Vertex(c, Vertex.CUSTOMER, customerName));
 			c++;
 		}
+	}
+	
+	public void category(String categoryId,String categoryName){
+		if(!v.containsKey(categoryId)){
+			v.put(categoryId, new Vertex(g, Vertex.CATEGORY, categoryName));
+			g++;
+		}
+	}
+}
+
+class WeightObject{
+	public String itemId;
+	public double weight;
+	
+	public WeightObject(String itemId,double weight){
+		this.itemId=itemId;
+		this.weight=weight;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!(obj instanceof WeightObject)) 
+			return false;
+		if (obj==this)
+			return true;
+		return this.itemId.equals(((WeightObject)obj).itemId);
+	}
+
+	@Override
+	public int hashCode() {
+		return itemId.length();
 	}
 }
